@@ -119,7 +119,9 @@
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
+
+      // Insert canvas BEFORE HUD
+      document.body.insertBefore(renderer.domElement, document.getElementById("scoreboard"));
 
       controls = new THREE.PointerLockControls(camera, document.body);
       scene.add(controls.getObject());
