@@ -60,15 +60,11 @@
     <button id="startButton">Start Game</button>
   </div>
 
-  <!-- ✅ three.js + OrbitControls -->
+  <!-- ✅ three.js тільки ядро -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/geometries/TextGeometry.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/libs/dat.gui.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/loaders/FontLoader.js"></script>
 
   <script>
-    let scene, camera, renderer, controls;
+    let scene, camera, renderer;
     let sloth, resources = [];
     let score = 0;
     const scoreboard = document.getElementById("scoreboard");
@@ -79,14 +75,12 @@
     function createSloth() {
       const slothGroup = new THREE.Group();
 
-      // Тіло
       const body = new THREE.Mesh(
         new THREE.CylinderGeometry(0.8, 0.8, 2.5, 16),
         new THREE.MeshPhongMaterial({ color: 0x8b5e3c })
       );
       slothGroup.add(body);
 
-      // Голова
       const head = new THREE.Mesh(
         new THREE.SphereGeometry(0.7, 16, 16),
         new THREE.MeshPhongMaterial({ color: 0xa67c52 })
@@ -94,7 +88,6 @@
       head.position.y = 1.7;
       slothGroup.add(head);
 
-      // Очі
       const eyeGeo = new THREE.SphereGeometry(0.1, 8, 8);
       const eyeMat = new THREE.MeshPhongMaterial({ color: 0x000000 });
       const eye1 = new THREE.Mesh(eyeGeo, eyeMat);
@@ -103,7 +96,6 @@
       eye2.position.set(0.25, 1.8, 0.6);
       slothGroup.add(eye1, eye2);
 
-      // Лапи
       const pawGeo = new THREE.BoxGeometry(0.3, 1, 0.3);
       const pawMat = new THREE.MeshPhongMaterial({ color: 0x8b5e3c });
       const paw1 = new THREE.Mesh(pawGeo, pawMat);
@@ -117,18 +109,21 @@
     }
 
     function createBanner() {
-      const loader = new THREE.FontLoader();
-      loader.load("https://cdn.jsdelivr.net/npm/three@0.161.0/examples/fonts/helvetiker_regular.typeface.json", function (font) {
-        const textGeo = new THREE.TextGeometry("RIALO", {
-          font: font,
-          size: 3,
-          height: 0.5
-        });
-        const textMat = new THREE.MeshPhongMaterial({ color: 0xffff00 });
-        const textMesh = new THREE.Mesh(textGeo, textMat);
-        textMesh.position.set(-8, 12, -20);
-        scene.add(textMesh);
-      });
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = 512;
+      canvas.height = 128;
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.font = "bold 80px Arial";
+      ctx.fillStyle = "yellow";
+      ctx.fillText("RIALO", 100, 90);
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({ map: texture });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(20, 5, 1);
+      sprite.position.set(0, 12, -20);
+      scene.add(sprite);
     }
 
     function initGame() {
@@ -141,10 +136,6 @@
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
-
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.target.set(0, 2, 0);
-      controls.enableDamping = true;
 
       const light = new THREE.DirectionalLight(0xffffff, 1);
       light.position.set(10, 20, 10);
@@ -251,7 +242,7 @@
       if (keys["KeyA"]) sloth.position.x -= speed * delta;
       if (keys["KeyD"]) sloth.position.x += speed * delta;
       camera.position.set(sloth.position.x, sloth.position.y + 4, sloth.position.z + 8);
-      controls.target.copy(sloth.position);
+      camera.lookAt(sloth.position);
     }
 
     const clock = new THREE.Clock();
@@ -259,7 +250,6 @@
       requestAnimationFrame(animate);
       const delta = clock.getDelta();
       moveSloth(delta);
-      controls.update();
       renderer.render(scene, camera);
     }
 
