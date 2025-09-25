@@ -1,5 +1,5 @@
-        <!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="uk">
 <head>
   <meta charset="UTF-8" />
   <title>Rialo Explorer</title>
@@ -15,6 +15,7 @@
       background: rgba(0,0,0,0.5);
       padding: 8px 12px;
       border-radius: 6px;
+      z-index: 10;
     }
     #message {
       position: fixed;
@@ -27,12 +28,26 @@
       padding: 6px 12px;
       border-radius: 6px;
       display: none;
+      z-index: 10;
+    }
+    /* optional: cursor hint when not locked */
+    #hint {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ddd;
+      background: rgba(0,0,0,0.6);
+      padding: 8px 12px;
+      border-radius: 6px;
+      z-index: 9;
     }
   </style>
 </head>
 <body>
   <div id="scoreboard">Rialo Points: 0</div>
   <div id="message"></div>
+  <div id="hint">Click to lock pointer — Use WASD to move, E gather, C craft</div>
 
   <script type="module">
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
@@ -53,7 +68,12 @@
 
     // Controls
     const controls = new PointerLockControls(camera, document.body);
-    document.body.addEventListener("click", () => controls.lock());
+    const hint = document.getElementById('hint');
+    document.body.addEventListener("click", () => {
+      controls.lock();
+    });
+    controls.addEventListener('lock', () => { hint.style.display = 'none'; });
+    controls.addEventListener('unlock', () => { hint.style.display = 'block'; });
 
     // Lights
     const light = new THREE.DirectionalLight(0xffffff, 1);
@@ -67,6 +87,7 @@
       new THREE.MeshPhongMaterial({ color: 0x228833 })
     );
     ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
     scene.add(ground);
 
     // Resources
@@ -93,20 +114,24 @@
     const scoreboard = document.getElementById("scoreboard");
     const message = document.getElementById("message");
 
+    function updateScoreboard() {
+      scoreboard.innerText = "Rialo Points: " + score;
+    }
+
     function flashMessage(text) {
       message.innerText = text;
       message.style.display = "block";
       setTimeout(() => { message.style.display = "none"; }, 1500);
     }
 
-    // Particles
+    // Particles (reuse geometry & material template)
     const activeParticles = [];
+    const particleGeom = new THREE.SphereGeometry(0.05, 6, 6);
 
     function spawnParticles(position, color = 0xaa44ff) {
-      const geo = new THREE.SphereGeometry(0.05, 6, 6);
       for (let i = 0; i < 15; i++) {
         const mat = new THREE.MeshBasicMaterial({ color, transparent: true });
-        const p = new THREE.Mesh(geo, mat);
+        const p = new THREE.Mesh(particleGeom, mat);
         p.position.copy(position);
         p.userData.velocity = new THREE.Vector3(
           (Math.random() - 0.5) * 2,
@@ -127,6 +152,8 @@
         p.userData.life -= delta;
         p.material.opacity = Math.max(0, p.userData.life);
         if (p.userData.life <= 0) {
+          // dispose material to avoid leak
+          if (p.material) p.material.dispose();
           scene.remove(p);
           activeParticles.splice(i, 1);
         }
@@ -149,15 +176,19 @@
         closest.userData.isDestroying = true;
         flashMessage("Resource Collected!");
         score += 5;
-        scoreboard.innerText = "Rialo Points: " + score;
+        updateScoreboard();
         spawnParticles(closest.position);
+      } else {
+        flashMessage("No resource nearby");
       }
     }
 
     function craftToken() {
+      // Example: spend 5 points to craft a token that gives +10 (net +5)
       if (score >= 5) {
-        score += 10;
-        scoreboard.innerText = "Rialo Points: " + score;
+        score -= 5;    // cost
+        score += 10;   // reward
+        updateScoreboard();
         flashMessage("Crafted Rialo Token!");
       } else {
         flashMessage("Not enough resources!");
@@ -183,7 +214,11 @@
 
       if (direction.length() > 0) {
         direction.normalize();
-        velocity.copy(direction).applyQuaternion(camera.quaternion).multiplyScalar(moveSpeed * delta);
+        // rotate direction by camera yaw but strip vertical component so movement stays horizontal
+        direction.applyQuaternion(camera.quaternion);
+        direction.y = 0;
+        direction.normalize();
+        velocity.copy(direction).multiplyScalar(moveSpeed * delta);
         controls.getObject().position.add(velocity);
       }
     }
@@ -201,13 +236,16 @@
       requestAnimationFrame(animate);
       const delta = clock.getDelta();
 
-      // Destroying cubes
+      // Destroying cubes (scale-down animation and removal)
       for (let i = resourceNodes.length - 1; i >= 0; i--) {
         const node = resourceNodes[i];
         if (node.userData.isDestroying) {
           node.scale.multiplyScalar(0.85);
           if (node.scale.x < 0.1) {
             resourceGroup.remove(node);
+            // dispose geometry/material to free memory
+            if (node.geometry) node.geometry.dispose();
+            if (node.material) node.material.dispose();
             resourceNodes.splice(i, 1);
           }
         }
