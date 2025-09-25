@@ -18,13 +18,13 @@
       background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 6px;
       display: none; z-index: 10;
     }
-    #controls { position: fixed; bottom: 30px; left: 20px; display: flex; gap: 15px; z-index: 20; }
-    #actions { position: fixed; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 20; }
+    #controls { position: fixed; bottom: 30px; left: 20px; display: none; gap: 15px; z-index: 20; }
+    #actions { position: fixed; bottom: 30px; right: 20px; display: none; flex-direction: column; gap: 15px; z-index: 20; }
     .btn {
       width: 60px; height: 60px; border-radius: 50%;
       background: rgba(255,255,255,0.2); border: 2px solid white;
       color: white; font-size: 28px; display: flex; justify-content: center; align-items: center;
-      user-select: none;
+      user-select: none; touch-action: none; cursor: pointer;
     }
     .btn:active { background: rgba(255,255,255,0.5); }
     #startScreen {
@@ -43,14 +43,14 @@
   <div id="scoreboard">Rialo Points: 0</div>
   <div id="message"></div>
 
-  <div id="controls" style="display:none;">
+  <div id="controls">
     <div class="btn" data-key="KeyA">⬅️</div>
     <div class="btn" data-key="KeyW">⬆️</div>
     <div class="btn" data-key="KeyS">⬇️</div>
     <div class="btn" data-key="KeyD">➡️</div>
   </div>
 
-  <div id="actions" style="display:none;">
+  <div id="actions">
     <div class="btn" id="btnE">E</div>
   </div>
 
@@ -60,13 +60,15 @@
     <button id="startButton">Start Game</button>
   </div>
 
-  <!-- ✅ Весь код у одному модулі -->
-  <script type="module">
-    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
-    import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js";
+  <!-- Підключаємо UMD-версію three.js та OrbitControls, які працюють через глобальний THREE -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
 
+  <script>
+    // Глобальні змінні гри
     let scene, camera, renderer, controls;
-    let sloth, resources = [];
+    let sloth;
+    let resources = [];
     let score = 0;
 
     const scoreboard = document.getElementById("scoreboard");
@@ -75,6 +77,7 @@
     const keys = {};
 
     function initGame() {
+      // Сцена, камера, рендер
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x77ccff);
 
@@ -83,17 +86,22 @@
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio ? window.devicePixelRatio : 1);
+      // вставляємо канвас під DOM-елементи (scoreboard залишиться зверху завдяки z-index)
       document.body.appendChild(renderer.domElement);
 
-      controls = new OrbitControls(camera, renderer.domElement);
+      // OrbitControls (працюють через глобальний THREE)
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.target.set(0, 2, 0);
       controls.enableDamping = true;
 
+      // Освітлення
       const light = new THREE.DirectionalLight(0xffffff, 1);
       light.position.set(10, 20, 10);
       scene.add(light);
       scene.add(new THREE.AmbientLight(0x404040));
 
+      // Ґрунт
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
         new THREE.MeshPhongMaterial({ color: 0x228833 })
@@ -101,23 +109,29 @@
       ground.rotation.x = -Math.PI / 2;
       scene.add(ground);
 
-      const slothGeo = new THREE.PlaneGeometry(2, 3);
-      const slothMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      // Sloth (проста фігура)
+      const slothGeo = new THREE.BoxGeometry(2, 2, 1); // коробка краще видно в 3D
+      const slothMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
       sloth = new THREE.Mesh(slothGeo, slothMat);
-      sloth.position.set(0, 1.5, 0);
+      sloth.position.set(0, 1, 0);
       scene.add(sloth);
 
+      // Банер
       const bannerGeo = new THREE.PlaneGeometry(20, 10);
       const bannerMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
       const banner = new THREE.Mesh(bannerGeo, bannerMat);
       banner.position.set(0, 15, -30);
       scene.add(banner);
 
+      // Спавним ресурси
       for (let i = 0; i < 10; i++) spawnTree();
       for (let i = 0; i < 6; i++) spawnRock();
       for (let i = 0; i < 4; i++) spawnGold();
 
       window.addEventListener('resize', onWindowResize);
+      // Показати контролси для десктопу та мобайлу (зручно під час тесту)
+      document.getElementById("controls").style.display = "flex";
+      document.getElementById("actions").style.display = "flex";
       animate();
     }
 
@@ -162,33 +176,50 @@
     function flashMessage(text) {
       message.innerText = text;
       message.style.display = "block";
-      setTimeout(() => message.style.display = "none", 1400);
+      clearTimeout(message._hideTimeout);
+      message._hideTimeout = setTimeout(() => message.style.display = "none", 1400);
     }
 
     function gatherResource() {
-      let closest = null, dist = 3;
+      let closest = null;
+      let dist = 3;
       for (let r of resources) {
+        // деякі ресурси — групи (tree), їх позиція в групі береться з r.mesh.position
         const d = sloth.position.distanceTo(r.mesh.position);
         if (d < dist) { dist = d; closest = r; }
       }
       if (closest) {
         scene.remove(closest.mesh);
-        resources.splice(resources.indexOf(closest), 1);
+        const idx = resources.indexOf(closest);
+        if (idx !== -1) resources.splice(idx, 1);
         score += closest.points;
         scoreboard.innerText = "Rialo Points: " + score;
         flashMessage("Collected " + closest.type + "!");
-      } else flashMessage("No resource nearby");
+      } else {
+        flashMessage("No resource nearby");
+      }
     }
 
-    window.addEventListener("keydown", e => { keys[e.code] = true; if (e.code === "KeyE") gatherResource(); });
+    // Клавіатура
+    window.addEventListener("keydown", e => {
+      keys[e.code] = true;
+      if (e.code === "KeyE") gatherResource();
+    });
     window.addEventListener("keyup", e => { keys[e.code] = false; });
 
+    // Сенсорні / мишачі події для кнопок руху
     document.querySelectorAll("#controls .btn").forEach(btn => {
       const key = btn.dataset.key;
-      btn.addEventListener("touchstart", () => keys[key] = true);
-      btn.addEventListener("touchend", () => keys[key] = false);
+      // При торканні/натисканні почати рух
+      btn.addEventListener("pointerdown", (ev) => { ev.preventDefault(); keys[key] = true; }, {passive:false});
+      // При відпусканні — зупинити
+      btn.addEventListener("pointerup", () => keys[key] = false);
+      btn.addEventListener("pointerleave", () => keys[key] = false);
     });
-    document.getElementById("btnE").addEventListener("touchstart", () => gatherResource());
+    // Кнопка E — збір
+    const btnE = document.getElementById("btnE");
+    btnE.addEventListener("pointerdown", (ev) => { ev.preventDefault(); gatherResource(); }, {passive:false});
+    btnE.addEventListener("click", () => gatherResource()); // підтримка кліку мишкою
 
     function moveSloth(delta) {
       const speed = 5;
@@ -196,6 +227,7 @@
       if (keys["KeyS"]) sloth.position.z += speed * delta;
       if (keys["KeyA"]) sloth.position.x -= speed * delta;
       if (keys["KeyD"]) sloth.position.x += speed * delta;
+      // Камера трохи слідує за слотом
       camera.position.set(sloth.position.x, sloth.position.y + 4, sloth.position.z + 8);
       controls.target.copy(sloth.position);
     }
@@ -210,15 +242,22 @@
     }
 
     function onWindowResize() {
+      if (!camera || !renderer) return;
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
+    // Старт гри натисканням кнопки
     document.getElementById("startButton").addEventListener("click", () => {
       startScreen.style.display = "none";
       initGame();
+      // Для мобільних — показати контролси (і для десктопу ми також їх показуємо)
       if (/Mobi|Android/i.test(navigator.userAgent)) {
+        document.getElementById("controls").style.display = "flex";
+        document.getElementById("actions").style.display = "flex";
+      } else {
+        // на десктопі також корисно показати на етапі тестування
         document.getElementById("controls").style.display = "flex";
         document.getElementById("actions").style.display = "flex";
       }
