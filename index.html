@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rialo Explorer</title>
   <style>
     body { margin: 0; overflow: hidden; background: #111; }
@@ -35,7 +36,6 @@
       user-select: none;
     }
     .btn:active { background: rgba(255,255,255,0.5); }
-
     #startScreen {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.9);
@@ -79,12 +79,11 @@
     <button id="startButton">Start Game</button>
   </div>
 
-  <!-- Three.js -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
-  <!-- ✅ Працююча версія OrbitControls (UMD) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.min.js"></script>
+  <!-- ✅ Використовуємо ESM-версії -->
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
+    import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js";
 
-  <script>
     let scene, camera, renderer, controls;
     let sloth, resources = [];
     let score = 0;
@@ -105,17 +104,14 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
-      // OrbitControls
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls = new OrbitControls(camera, renderer.domElement);
       controls.target.set(0, 2, 0);
 
-      // Lights
       const light = new THREE.DirectionalLight(0xffffff, 1);
       light.position.set(10, 20, 10);
       scene.add(light);
       scene.add(new THREE.AmbientLight(0x404040));
 
-      // Ground
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
         new THREE.MeshPhongMaterial({ color: 0x228833 })
@@ -123,22 +119,18 @@
       ground.rotation.x = -Math.PI / 2;
       scene.add(ground);
 
-      // Sloth character (якщо немає sloth.png – буде просто білий квадрат)
-      const loader = new THREE.TextureLoader();
-      const slothMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
       const slothGeo = new THREE.PlaneGeometry(2, 3);
+      const slothMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
       sloth = new THREE.Mesh(slothGeo, slothMat);
       sloth.position.set(0, 1.5, 0);
       scene.add(sloth);
 
-      // Rialo Banner (якщо немає картинки – буде жовта площина)
-      const bannerMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
       const bannerGeo = new THREE.PlaneGeometry(20, 10);
+      const bannerMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
       const banner = new THREE.Mesh(bannerGeo, bannerMat);
       banner.position.set(0, 15, -30);
       scene.add(banner);
 
-      // Spawn resources
       for (let i = 0; i < 10; i++) spawnTree();
       for (let i = 0; i < 6; i++) spawnRock();
       for (let i = 0; i < 4; i++) spawnGold();
