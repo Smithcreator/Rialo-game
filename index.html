@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rialo Explorer — Human Edition</title>
+  <title>Rialo Explorer — Final Edition</title>
   <style>
     body { margin: 0; overflow: hidden; background: #111; font-family: Arial, sans-serif; }
     #scoreboard {
@@ -61,10 +61,9 @@
 
   <!-- three.js -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/controls/OrbitControls.js"></script>
 
   <script>
-  let scene, camera, renderer, controls;
+  let scene, camera, renderer;
   let player, resources = [];
   let score = 0;
   const scoreboard = document.getElementById("scoreboard");
@@ -182,9 +181,6 @@
     renderer.setSize(window.innerWidth,window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    controls=new THREE.OrbitControls(camera,renderer.domElement);
-    controls.target.set(0,1.2,0);
-
     const dir=new THREE.DirectionalLight(0xffffff,1); dir.position.set(10,20,10);
     scene.add(dir,new THREE.AmbientLight(0x666666,0.8));
     const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,300),new THREE.MeshStandardMaterial({color:0x2b6b2b}));
@@ -253,13 +249,13 @@
     requestAnimationFrame(animate);
     const dt=clock.getDelta();
     if(player && !gameOver){
-      let forward = new THREE.Vector3();
-      camera.getWorldDirection(forward);
-      forward.y = 0; forward.normalize();
-      let right = new THREE.Vector3();
-      right.crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
-
       let moveDir = new THREE.Vector3();
+
+      // рух відносно персонажа
+      const forward = new THREE.Vector3(0,0,1).applyQuaternion(player.quaternion);
+      forward.y = 0; forward.normalize();
+      const right = new THREE.Vector3().crossVectors(forward,new THREE.Vector3(0,1,0)).normalize();
+
       if(keys['KeyW'] || keys['ArrowUp']) moveDir.add(forward);
       if(keys['KeyS'] || keys['ArrowDown']) moveDir.sub(forward);
       if(keys['KeyA'] || keys['ArrowLeft']) moveDir.sub(right);
@@ -282,8 +278,14 @@
         if(legL) legL.rotation.x *= 0.8;
         if(legR) legR.rotation.x *= 0.8;
       }
+
+      // ===== КАМЕРА СЛІДУЄ =====
+      const offset = new THREE.Vector3(0,3,-6);
+      const camPos = player.position.clone().add(offset.applyQuaternion(player.quaternion));
+      camera.position.lerp(camPos,0.1);
+      camera.lookAt(player.position.clone().add(new THREE.Vector3(0,1.5,0)));
     }
-    controls.update();
+
     renderer.render(scene,camera);
   }
   </script>
