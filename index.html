@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Rialo Explorer</title>
   <style>
     body { margin: 0; overflow: hidden; background: #111; }
@@ -18,40 +18,23 @@
       background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 6px;
       display: none; z-index: 10;
     }
-    #controls {
-      position: fixed; bottom: 30px; left: 20px;
-      display: flex; gap: 15px; z-index: 20;
-    }
-    #actions {
-      position: fixed; bottom: 30px; right: 20px;
-      display: flex; flex-direction: column; gap: 15px; z-index: 20;
-    }
+    #controls { position: fixed; bottom: 30px; left: 20px; display: flex; gap: 15px; z-index: 20; }
+    #actions { position: fixed; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 15px; z-index: 20; }
     .btn {
-      width: 60px; height: 60px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.2);
-      border: 2px solid white;
-      color: white; font-size: 28px;
-      display: flex; justify-content: center; align-items: center;
+      width: 60px; height: 60px; border-radius: 50%;
+      background: rgba(255,255,255,0.2); border: 2px solid white;
+      color: white; font-size: 28px; display: flex; justify-content: center; align-items: center;
       user-select: none;
     }
     .btn:active { background: rgba(255,255,255,0.5); }
     #startScreen {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.9);
-      display: flex; flex-direction: column; justify-content: center; align-items: center;
-      z-index: 100;
-      color: white; font-family: Arial, sans-serif;
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.9); display:flex; flex-direction:column; justify-content:center; align-items:center;
+      z-index:100; color:white; font-family: Arial, sans-serif;
     }
     #startButton {
-      margin-top: 20px;
-      padding: 12px 24px;
-      font-size: 20px;
-      border: 2px solid white;
-      background: transparent;
-      color: white;
-      border-radius: 8px;
-      cursor: pointer;
+      margin-top: 20px; padding: 12px 24px; font-size: 20px; border:2px solid white;
+      background: transparent; color: white; border-radius: 8px; cursor: pointer;
     }
     #startButton:hover { background: rgba(255,255,255,0.2); }
   </style>
@@ -60,7 +43,6 @@
   <div id="scoreboard">Rialo Points: 0</div>
   <div id="message"></div>
 
-  <!-- Mobile controls -->
   <div id="controls" style="display:none;">
     <div class="btn" data-key="KeyA">⬅️</div>
     <div class="btn" data-key="KeyW">⬆️</div>
@@ -72,14 +54,13 @@
     <div class="btn" id="btnE">E</div>
   </div>
 
-  <!-- Start screen -->
   <div id="startScreen">
     <h1>Rialo Explorer</h1>
     <p>Collect resources (E) and earn Rialo Points.</p>
     <button id="startButton">Start Game</button>
   </div>
 
-  <!-- ✅ Використовуємо ESM-версії -->
+  <!-- ✅ Весь код у одному модулі -->
   <script type="module">
     import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
     import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js";
@@ -87,10 +68,10 @@
     let scene, camera, renderer, controls;
     let sloth, resources = [];
     let score = 0;
+
     const scoreboard = document.getElementById("scoreboard");
     const message = document.getElementById("message");
     const startScreen = document.getElementById("startScreen");
-
     const keys = {};
 
     function initGame() {
@@ -106,6 +87,7 @@
 
       controls = new OrbitControls(camera, renderer.domElement);
       controls.target.set(0, 2, 0);
+      controls.enableDamping = true;
 
       const light = new THREE.DirectionalLight(0xffffff, 1);
       light.position.set(10, 20, 10);
@@ -135,6 +117,7 @@
       for (let i = 0; i < 6; i++) spawnRock();
       for (let i = 0; i < 4; i++) spawnGold();
 
+      window.addEventListener('resize', onWindowResize);
       animate();
     }
 
@@ -150,8 +133,7 @@
       const tree = new THREE.Group();
       trunk.position.y = 1;
       leaves.position.y = 2.5;
-      tree.add(trunk);
-      tree.add(leaves);
+      tree.add(trunk, leaves);
       tree.position.set((Math.random() - 0.5) * 100, 0, (Math.random() - 0.5) * 100);
       scene.add(tree);
       resources.push({ mesh: tree, type: "tree", points: 5 });
@@ -180,7 +162,7 @@
     function flashMessage(text) {
       message.innerText = text;
       message.style.display = "block";
-      setTimeout(() => message.style.display = "none", 1500);
+      setTimeout(() => message.style.display = "none", 1400);
     }
 
     function gatherResource() {
@@ -195,16 +177,11 @@
         score += closest.points;
         scoreboard.innerText = "Rialo Points: " + score;
         flashMessage("Collected " + closest.type + "!");
-      } else {
-        flashMessage("No resource nearby");
-      }
+      } else flashMessage("No resource nearby");
     }
 
-    window.addEventListener("keydown", e => {
-      keys[e.code] = true;
-      if (e.code === "KeyE") gatherResource();
-    });
-    window.addEventListener("keyup", e => keys[e.code] = false);
+    window.addEventListener("keydown", e => { keys[e.code] = true; if (e.code === "KeyE") gatherResource(); });
+    window.addEventListener("keyup", e => { keys[e.code] = false; });
 
     document.querySelectorAll("#controls .btn").forEach(btn => {
       const key = btn.dataset.key;
@@ -230,6 +207,12 @@
       moveSloth(delta);
       controls.update();
       renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
     document.getElementById("startButton").addEventListener("click", () => {
