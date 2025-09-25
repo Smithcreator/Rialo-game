@@ -2,441 +2,198 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Rialo Explorer — Third Person</title>
+  <title>Rialo Explorer</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #111; font-family: Arial, sans-serif; color: #fff; }
+    body { margin:0; overflow:hidden; background:#111; font-family:Arial,sans-serif; color:#fff; }
     #hud {
-      position: fixed; left: 10px; top: 10px; z-index: 50;
-      background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px;
+      position:fixed; left:10px; top:10px; z-index:50;
+      background:rgba(0,0,0,0.5); padding:8px 12px; border-radius:6px;
     }
-    #hud .line { margin: 4px 0; }
     #message {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      color: yellow; font-size: 16px; background: rgba(0,0,0,0.6);
-      padding: 6px 12px; border-radius: 6px; display: none; z-index: 60;
+      position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+      color:yellow; font-size:16px; background:rgba(0,0,0,0.6);
+      padding:6px 12px; border-radius:6px; display:none; z-index:60;
     }
     #startScreen {
-      position: fixed; inset:0; display:flex;align-items:center;justify-content:center;
-      background: rgba(0,0,0,0.9); z-index: 200; flex-direction: column; gap: 12px;
+      position:fixed; inset:0; display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      background:rgba(0,0,0,0.9); z-index:200; color:white;
     }
     #startButton {
-      padding: 10px 18px; font-size: 18px; border-radius:8px;
-      background:transparent; color:white; border:2px solid white; cursor:pointer;
+      margin-top:20px; padding:10px 20px; font-size:18px;
+      border:2px solid white; border-radius:8px; background:transparent; color:white;
+      cursor:pointer;
     }
-    #minimap { position: fixed; right: 10px; top: 10px; border: 2px solid white; z-index: 50; background:black; }
-    #controlsMobile { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index:60; display:none; gap:8px; }
-    .btn { width:56px; height:56px; border-radius:50%; background: rgba(255,255,255,0.12); display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,0.2); color:white; font-weight:bold; }
-    #errorBox { position: fixed; left:10px; bottom:80px; z-index:100; background: rgba(150,0,0,0.9); padding:8px 12px; border-radius:6px; display:none; color:white; font-family:monospace; max-width: 60vw; max-height: 160px; overflow:auto; }
+    #minimap { position:fixed; right:10px; top:10px; border:2px solid white; z-index:50; background:black; }
   </style>
 </head>
 <body>
   <div id="hud">
-    <div class="line" id="points">Tokens: 0</div>
-    <div class="line" id="inv">Wood: 0 | Stone: 0 | Gold: 0</div>
-    <div class="line">Controls: Click to lock, WASD to move, mouse to rotate, E gather, C craft</div>
+    Rialo Points: <span id="score">0</span><br/>
+    Controls: WASD move, E gather
   </div>
-
   <canvas id="minimap" width="150" height="150"></canvas>
   <div id="message"></div>
-  <div id="errorBox"></div>
 
-  <!-- Start overlay -->
   <div id="startScreen">
-    <h1 style="margin:0; color:white;">Rialo Explorer</h1>
-    <p style="color:#ddd; max-width:420px; text-align:center;">Collect resources (E), craft tokens (C). Click Start then click the canvas to lock the mouse.</p>
+    <h1>Rialo Explorer</h1>
+    <p>Collect resources (E) and earn Rialo Points!</p>
     <button id="startButton">Start Game</button>
   </div>
 
-  <!-- Mobile controls (hidden on desktop) -->
-  <div id="controlsMobile">
-    <div class="btn" data-key="KeyA">◀</div>
-    <div class="btn" data-key="KeyW">▲</div>
-    <div class="btn" data-key="KeyS">▼</div>
-    <div class="btn" data-key="KeyD">▶</div>
-  </div>
-
-  <!-- Use a proven UMD build for compatibility -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/examples/js/controls/PointerLockControls.js"></script>
-
   <script>
-    (function () {
-      // --- Config & State ---
-      const hudTokens = document.getElementById('points');
-      const hudInv = document.getElementById('inv');
-      const messageEl = document.getElementById('message');
-      const errorBox = document.getElementById('errorBox');
-      const minimap = document.getElementById('minimap');
-      const minimapCtx = minimap.getContext('2d');
-      const startScreen = document.getElementById('startScreen');
-      const startBtn = document.getElementById('startButton');
+    let scene, camera, renderer;
+    let player, playerGroup;
+    let resources = [];
+    let score = 0;
+    const keys = {};
+    const scoreEl = document.getElementById("score");
+    const messageEl = document.getElementById("message");
+    const minimap = document.getElementById("minimap");
+    const ctx = minimap.getContext("2d");
+    const clock = new THREE.Clock();
 
-      let scene, camera, renderer;
-      let player, playerGroup; // playerGroup is that which moves; player is visible sloth mesh
-      let controls; // for pointer lock (we'll still use it for locking)
-      let resourceGroup;
-      let resourceNodes = [];
-      let inventory = { wood: 0, stone: 0, gold: 0, tokens: 0 };
-      let keys = {};
-      let clock;
-      let started = false;
+    function flashMessage(txt) {
+      messageEl.innerText = txt;
+      messageEl.style.display = "block";
+      setTimeout(() => messageEl.style.display = "none", 1200);
+    }
 
-      function showError(msg) {
-        errorBox.style.display = 'block';
-        errorBox.innerText = (new Date()).toISOString() + ' — ' + msg + '\n\n' + errorBox.innerText;
-        console.error(msg);
-      }
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x222222);
 
-      function flashMessage(text, duration = 1500) {
-        messageEl.innerText = text;
-        messageEl.style.display = 'block';
-        setTimeout(() => messageEl.style.display = 'none', duration);
-      }
+      renderer = new THREE.WebGLRenderer({ antialias:true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
 
-      // --- Init scene ---
-      function initScene() {
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x222222);
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
 
-        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.insertBefore(renderer.domElement, document.getElementById('hud'));
+      // ground
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(200,200),
+        new THREE.MeshLambertMaterial({ color:0x226622 })
+      );
+      ground.rotation.x = -Math.PI/2;
+      scene.add(ground);
 
-        // lights
-        const dir = new THREE.DirectionalLight(0xffffff, 1.0);
-        dir.position.set(10, 20, 10);
-        scene.add(dir);
-        scene.add(new THREE.AmbientLight(0x404040));
+      // lights
+      const dir = new THREE.DirectionalLight(0xffffff, 1);
+      dir.position.set(10,20,10);
+      scene.add(dir);
+      scene.add(new THREE.AmbientLight(0x404040));
 
-        // ground
-        const groundGeo = new THREE.PlaneGeometry(200, 200);
-        const groundMat = new THREE.MeshLambertMaterial({ color: 0x2a6b2a });
-        const ground = new THREE.Mesh(groundGeo, groundMat);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        scene.add(ground);
+      // player group + sprite
+      playerGroup = new THREE.Group();
+      scene.add(playerGroup);
 
-        // resource group
-        resourceGroup = new THREE.Group();
-        scene.add(resourceGroup);
+      const tex = new THREE.TextureLoader().load("sloth.png");
+      const aspect = 0.7;
+      const geo = new THREE.PlaneGeometry(1.5*aspect,1.5);
+      const mat = new THREE.MeshBasicMaterial({ map:tex, transparent:true });
+      player = new THREE.Mesh(geo, mat);
+      player.position.y = 0.75;
+      playerGroup.add(player);
 
-        // spawn resources
-        spawnResources(30);
+      // camera third person behind player
+      camera.position.set(0,2.5,-4);
+      playerGroup.add(camera);
 
-        // Rialo logo plane (place in sky)
-        loadLogoPlane();
+      // spawn Rialo banner
+      const logoTex = new THREE.TextureLoader().load("rialo_logo.png");
+      const logo = new THREE.Mesh(
+        new THREE.PlaneGeometry(12,6),
+        new THREE.MeshBasicMaterial({ map:logoTex, transparent:true })
+      );
+      logo.position.set(0,8,-15);
+      scene.add(logo);
 
-        // player setup (third-person)
-        createPlayer();
+      // spawn resources
+      for (let i=0;i<25;i++) spawnResource();
 
-        // clock & resize
-        clock = new THREE.Clock();
-        window.addEventListener('resize', onResize);
-      }
-
-      function onResize() {
-        if (!camera || !renderer) return;
-        camera.aspect = window.innerWidth / window.innerHeight;
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth/window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-      }
-
-      // --- Logo plane ---
-      function loadLogoPlane() {
-        const loader = new THREE.TextureLoader();
-        loader.load('rialo_logo.png',
-          (tex) => {
-            const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
-            const aspect = tex.image.width / tex.image.height || 2;
-            const plane = new THREE.Mesh(new THREE.PlaneGeometry(6 * aspect, 6), mat);
-            plane.position.set(0, 10, -10);
-            scene.add(plane);
-          },
-          undefined,
-          (err) => { console.warn('logo load failed', err); showError('Could not load rialo_logo.png. Put it alongside the HTML.'); }
-        );
-      }
-
-      // --- Player (uses sloth image on a plane) ---
-      function createPlayer() {
-        playerGroup = new THREE.Group();
-        playerGroup.position.set(0, 0, 0);
-        scene.add(playerGroup);
-
-        // load sloth texture for the visible character sprite
-        const loader = new THREE.TextureLoader();
-        loader.load('sloth.png',
-          (tex) => {
-            // we create a double-sided plane always facing camera via custom behavior (billboard)
-            const aspect = (tex.image.width / tex.image.height) || 0.6;
-            const planeGeo = new THREE.PlaneGeometry(1.6 * aspect, 1.6);
-            const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: true });
-            player = new THREE.Mesh(planeGeo, mat);
-            player.position.set(0, 0.9, 0); // sits slightly above ground
-            player.castShadow = true;
-            playerGroup.add(player);
-          },
-          undefined,
-          (err) => { console.warn('sloth load failed', err); showError('Could not load sloth.png. Put it alongside the HTML.'); }
-        );
-
-        // camera is behind and above the player
-        camera.position.set(0, 2.0, -4.0);
-        camera.lookAt(new THREE.Vector3(0, 1.0, 0));
-        playerGroup.add(camera); // camera follows playerGroup
-      }
-
-      // Make the player plane always face the camera (simple billboard) each frame
-      function billboardPlayer() {
-        if (!player) return;
-        // compute inverse rotation of camera: aim the plane at camera
-        const worldCamPos = new THREE.Vector3();
-        camera.getWorldPosition(worldCamPos);
-        const worldPlayerPos = new THREE.Vector3();
-        player.getWorldPosition(worldPlayerPos);
-        const dir = worldCamPos.clone().sub(worldPlayerPos);
-        const angle = Math.atan2(dir.x, dir.z);
-        player.rotation.set(0, angle, 0);
-      }
-
-      // --- Resources spawning ---
-      function spawnResources(count = 20) {
-        for (let i = 0; i < count; i++) {
-          const rx = (Math.random() - 0.5) * 80;
-          const rz = (Math.random() - 0.5) * 80;
-          const types = ['wood', 'stone', 'gold'];
-          const type = types[Math.floor(Math.random() * types.length)];
-          spawnResource(rx, rz, type);
-        }
-      }
-
-      function spawnResource(x, z, type) {
-        let mesh;
-        if (type === 'wood') {
-          // trunk (cylinder) + foliage (sphere)
-          const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.35,1.2), new THREE.MeshLambertMaterial({ color: 0x704214 }));
-          trunk.position.set(0, 0.6, 0);
-          const foliage = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 8), new THREE.MeshLambertMaterial({ color: 0x2f8f2f }));
-          foliage.position.set(0, 1.4, 0);
-          const g = new THREE.Group();
-          g.add(trunk); g.add(foliage);
-          mesh = g;
-        } else if (type === 'stone') {
-          const geom = new THREE.IcosahedronGeometry(0.7, 0);
-          mesh = new THREE.Mesh(geom, new THREE.MeshLambertMaterial({ color: 0x888888 }));
-          mesh.position.y = 0.4;
-        } else { // gold
-          mesh = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 12), new THREE.MeshPhongMaterial({ color: 0xffcc33, shininess: 60 }));
-          mesh.position.y = 0.45;
-        }
-
-        mesh.position.set(x, 0, z);
-        mesh.userData = { type: type, isDestroying: false, scale: 1.0 };
-        resourceGroup.add(mesh);
-        resourceNodes.push(mesh);
-      }
-
-      // --- Input & movement ---
-      window.addEventListener('keydown', (e) => { keys[e.code] = true; });
-      window.addEventListener('keyup', (e) => { keys[e.code] = false; });
-
-      // mobile control buttons
-      document.querySelectorAll('#controlsMobile .btn').forEach(btn => {
-        const k = btn.dataset.key;
-        btn.addEventListener('touchstart', (ev) => { ev.preventDefault(); keys[k] = true; }, { passive:false });
-        btn.addEventListener('touchend', () => { keys[k] = false; });
       });
+    }
 
-      function movePlayer(delta) {
-        const speed = 5.0;
-        const dir = new THREE.Vector3();
-        if (keys['KeyW']) dir.z -= 1;
-        if (keys['KeyS']) dir.z += 1;
-        if (keys['KeyA']) dir.x -= 1;
-        if (keys['KeyD']) dir.x += 1;
-        if (dir.lengthSq() > 0) {
-          dir.normalize();
-          // rotate movement by player's yaw (playerGroup rotation.y)
-          const yaw = playerGroup.rotation.y;
-          const cos = Math.cos(yaw), sin = Math.sin(yaw);
-          const dx = dir.x * cos - dir.z * sin;
-          const dz = dir.x * sin + dir.z * cos;
-          playerGroup.position.x += dx * speed * delta;
-          playerGroup.position.z += dz * speed * delta;
-        }
+    function spawnResource() {
+      const types = [0x8b4513,0xaaaaaa,0xffd700];
+      const color = types[Math.floor(Math.random()*types.length)];
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1,1,1),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      mesh.position.set((Math.random()-0.5)*80,0.5,(Math.random()-0.5)*80);
+      scene.add(mesh);
+      resources.push(mesh);
+    }
+
+    function gather() {
+      let closest=null, dist=2;
+      const pos = playerGroup.position;
+      for (let r of resources) {
+        const d = pos.distanceTo(r.position);
+        if (d<dist) { dist=d; closest=r; }
       }
-
-      // --- Mouse look (simple yaw) ---
-      function enablePointerLock(canvas) {
-        // Use PointerLockControls only to lock pointer, not for camera
-        if (typeof THREE.PointerLockControls === 'undefined') {
-          showError('PointerLockControls not loaded. Mouse lock may fail.');
-          return;
-        }
-        controls = new THREE.PointerLockControls(camera, renderer.domElement);
-        // we don't add controls.getObject to scene; instead we use pointer lock and listen mousemove
-        renderer.domElement.addEventListener('click', () => {
-          try { controls.lock(); } catch (e) { console.warn('lock failed', e); }
-        });
-
-        controls.addEventListener('lock', () => { /* nothing special */ });
-        controls.addEventListener('unlock', () => { /* nothing special */ });
-
-        // on mousemove, rotate playerGroup by movementX
-        const onMove = (e) => {
-          if (!controls.isLocked) return;
-          const sensitivity = 0.0025;
-          playerGroup.rotation.y -= e.movementX * sensitivity; // yaw
-          // optional: clamp pitch if you want camera pitch (omitted to keep camera stable)
-        };
-        document.addEventListener('mousemove', onMove);
+      if (closest) {
+        scene.remove(closest);
+        resources = resources.filter(x=>x!==closest);
+        score += 5;
+        scoreEl.innerText = score;
+        flashMessage("Collected resource!");
+      } else {
+        flashMessage("No resource nearby");
       }
+    }
 
-      // --- Gather & Crafting ---
-      function gatherResource() {
-        // find closest resource within radius 2.0
-        let closest = null;
-        let dist = 2.0;
-        const playerPos = new THREE.Vector3();
-        playerGroup.getWorldPosition(playerPos);
-        for (let node of resourceNodes) {
-          if (node.userData.isDestroying) continue;
-          const nodePos = new THREE.Vector3();
-          node.getWorldPosition(nodePos);
-          const d = playerPos.distanceTo(nodePos);
-          if (d < dist) { dist = d; closest = node; }
-        }
-        if (closest) {
-          // increment inventory based on type and mark destroying
-          const t = closest.userData.type;
-          closest.userData.isDestroying = true;
-          // play simple animation shrink in loop
-          flashMessage('Collected: ' + t.charAt(0).toUpperCase() + t.slice(1));
-          inventory[t] += 1;
-          updateHUD();
-          // small sound (try)
-          try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o = a.createOscillator(); o.type='square'; o.frequency.value = 550; const g=a.createGain(); o.connect(g); g.connect(a.destination); g.gain.value=0.05; o.start(); setTimeout(()=>{o.stop(); a.close();},120); } catch(e) {}
-          // remove visually after short time
-          setTimeout(() => {
-            // shrink scale
-            const shrink = setInterval(() => {
-              closest.scale.multiplyScalar(0.8);
-              if ((closest.scale.x || 1) < 0.08) {
-                resourceGroup.remove(closest);
-                const idx = resourceNodes.indexOf(closest);
-                if (idx !== -1) resourceNodes.splice(idx, 1);
-                clearInterval(shrink);
-              }
-            }, 60);
-          }, 120);
-        } else {
-          flashMessage('No resource nearby');
-        }
+    // Input
+    window.addEventListener("keydown",e=>{ keys[e.code]=true; if(e.code==="KeyE") gather(); });
+    window.addEventListener("keyup",e=>keys[e.code]=false);
+
+    function move(delta) {
+      const speed=5;
+      const dir=new THREE.Vector3();
+      if(keys["KeyW"]) dir.z -= 1;
+      if(keys["KeyS"]) dir.z += 1;
+      if(keys["KeyA"]) dir.x -= 1;
+      if(keys["KeyD"]) dir.x += 1;
+      if(dir.lengthSq()>0) {
+        dir.normalize();
+        playerGroup.position.addScaledVector(dir,speed*delta);
       }
+    }
 
-      function craftToken() {
-        // recipe: wood >= 2, stone >=1, gold >=1
-        if (inventory.wood >= 2 && inventory.stone >= 1 && inventory.gold >= 1) {
-          inventory.wood -= 2;
-          inventory.stone -= 1;
-          inventory.gold -= 1;
-          inventory.tokens += 1;
-          updateHUD();
-          flashMessage('Crafted Rialo Token!');
-          try { const a = new (window.AudioContext || window.webkitAudioContext)(); const o=a.createOscillator(); o.type='sawtooth'; o.frequency.value=320; const g=a.createGain(); o.connect(g); g.connect(a.destination); g.gain.value=0.06; o.start(); setTimeout(()=>{o.stop(); a.close();},180); } catch(e) {}
-        } else {
-          flashMessage('Not enough resources to craft');
-        }
+    function drawMinimap() {
+      ctx.fillStyle="black"; ctx.fillRect(0,0,minimap.width,minimap.height);
+      const cx=minimap.width/2, cy=minimap.height/2;
+      ctx.fillStyle="red"; ctx.beginPath(); ctx.arc(cx,cy,4,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="blue";
+      for(let r of resources) {
+        const dx=r.position.x-playerGroup.position.x;
+        const dz=r.position.z-playerGroup.position.z;
+        const scale=4;
+        const x=cx+dx/scale, y=cy+dz/scale;
+        if(x>=0 && x<=minimap.width && y>=0 && y<=minimap.height)
+          ctx.fillRect(x-2,y-2,4,4);
       }
+    }
 
-      function updateHUD() {
-        hudTokens.innerText = 'Tokens: ' + inventory.tokens;
-        hudInv.innerText = 'Wood: ' + inventory.wood + ' | Stone: ' + inventory.stone + ' | Gold: ' + inventory.gold;
-      }
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta=clock.getDelta();
+      move(delta);
+      renderer.render(scene,camera);
+      drawMinimap();
+    }
 
-      // prevent crafting spam by simply checking inventory (no exploit left)
-      // E and C binding
-      window.addEventListener('keydown', (e) => {
-        if (!started) return;
-        if (e.code === 'KeyE') { gatherResource(); }
-        if (e.code === 'KeyC') { craftToken(); }
-      });
-
-      // support touch for E/C on mobile screen tap (two-finger tap is messy) -> use long-press controls omitted for brevity
-      // but also bind buttons to click
-      // (if you want mobile on-screen E/C, we can add later)
-
-      // --- Minimap drawing ---
-      function drawMinimap() {
-        minimapCtx.fillStyle = '#000';
-        minimapCtx.fillRect(0,0,minimap.width,minimap.height);
-
-        const centerX = minimap.width / 2;
-        const centerY = minimap.height / 2;
-        // player dot
-        minimapCtx.fillStyle = 'red';
-        minimapCtx.beginPath();
-        minimapCtx.arc(centerX, centerY, 4, 0, Math.PI*2);
-        minimapCtx.fill();
-
-        // resources
-        minimapCtx.fillStyle = 'cyan';
-        for (let node of resourceNodes) {
-          if (node.userData.isDestroying) continue;
-          const dx = node.position.x - playerGroup.position.x;
-          const dz = node.position.z - playerGroup.position.z;
-          const scale = 4.0; // zoom factor
-          const x = centerX + dx / scale;
-          const y = centerY + dz / scale;
-          if (x >=0 && x <= minimap.width && y >=0 && y <= minimap.height) {
-            // color by type
-            if (node.userData.type === 'wood') minimapCtx.fillStyle = '#0f0';
-            else if (node.userData.type === 'stone') minimapCtx.fillStyle = '#888';
-            else minimapCtx.fillStyle = '#ffcc33';
-            minimapCtx.fillRect(x-2, y-2, 4, 4);
-          }
-        }
-      }
-
-      // --- Main loop ---
-      function animate() {
-        requestAnimationFrame(animate);
-        const delta = Math.max(0, Math.min(0.1, clock.getDelta()));
-        // movement
-        movePlayer(delta);
-        // minimal damping to playerGroup
-        // billboard
-        billboardPlayer();
-
-        // animate shrinking resources being removed (handled in gather)
-        renderer.render(scene, camera);
-        drawMinimap();
-      }
-
-      // --- Start sequence ---
-      startBtn.addEventListener('click', () => {
-        if (started) return;
-        started = true;
-        startScreen.style.display = 'none';
-        try {
-          initScene();
-          enablePointerLock(renderer.domElement || document.body);
-          clock = new THREE.Clock();
-          animate();
-        } catch (e) {
-          showError('Start failed: ' + (e && e.message ? e.message : e));
-        }
-      });
-
-      // simple helper: click E/C UI by overlay — not included to avoid clutter
-      // You can still press E and C on keyboard.
-
-      // Provide friendly fallback hint for missing images
-      // If user forgot sloth.png or rialo_logo.png, errors will be shown in errorBox
-      // Done.
-    })();
+    document.getElementById("startButton").addEventListener("click",()=>{
+      document.getElementById("startScreen").style.display="none";
+      init();
+      animate();
+    });
   </script>
 </body>
 </html>
