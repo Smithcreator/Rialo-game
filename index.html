@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Rialo Explorer — Sloth Edition</title>
+  <title>Rialo Explorer — Human Edition</title>
   <style>
     body { margin: 0; overflow: hidden; background: #111; font-family: Arial, sans-serif; }
     #scoreboard {
@@ -36,11 +36,6 @@
       background: transparent; color: white; border-radius: 8px; cursor: pointer;
     }
     #startButton:hover { background: rgba(255,255,255,0.12); }
-    @media (max-width:700px) {
-      .btn { width:54px; height:54px; font-size:22px; }
-      #controls { left:12px; bottom:16px; }
-      #actions { right:12px; bottom:16px; }
-    }
   </style>
 </head>
 <body>
@@ -48,10 +43,10 @@
   <div id="message"></div>
 
   <div id="controls">
-    <div class="btn" data-key="KeyA">⬅️</div>
-    <div class="btn" data-key="KeyW">⬆️</div>
-    <div class="btn" data-key="KeyS">⬇️</div>
-    <div class="btn" data-key="KeyD">➡️</div>
+    <div class="btn" data-key="ArrowLeft">⬅️</div>
+    <div class="btn" data-key="ArrowUp">⬆️</div>
+    <div class="btn" data-key="ArrowDown">⬇️</div>
+    <div class="btn" data-key="ArrowRight">➡️</div>
   </div>
 
   <div id="actions">
@@ -70,7 +65,7 @@
 
   <script>
   let scene, camera, renderer, controls;
-  let sloth, resources = [];
+  let player, resources = [];
   let score = 0;
   const scoreboard = document.getElementById("scoreboard");
   const message = document.getElementById("message");
@@ -81,51 +76,39 @@
   let resourceSpawner;
   const clock = new THREE.Clock();
 
-  // ====== Sloth model ======
-  function createSlothPrimitive() {
-    const g = new THREE.Group();
-    const furMat = new THREE.MeshStandardMaterial({ color: 0x8b6b4a, roughness: 0.9 });
-    const faceMat = new THREE.MeshStandardMaterial({ color: 0xc79a6d, roughness: 0.85 });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x2b2620, roughness: 0.6 });
+  let armL, armR, legL, legR; // для анімації
+  let walkCycle = 0;
 
-    const body = new THREE.Mesh(new THREE.SphereGeometry(1.2, 28, 24), furMat);
-    body.scale.set(1.6, 1.0, 1.0);
-    body.position.set(0, 0.8, 0);
+  // ====== Human character ======
+  function createHuman() {
+    const g = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3366cc });
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xffcc99 });
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+    // Тіло
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1,1.5,0.6), bodyMat);
+    body.position.set(0,1,0);
     g.add(body);
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 20), faceMat);
-    head.position.set(0, 1.45, 0.85);
+    // Голова
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 24, 20), skinMat);
+    head.position.set(0,2.2,0);
     g.add(head);
 
-    const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), darkMat);
-    muzzle.position.set(0, 1.3, 1.2);
-    g.add(muzzle);
-
-    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 8), new THREE.MeshStandardMaterial({ color: 0x000 }));
-    nose.position.set(0, 1.28, 1.36);
-    g.add(nose);
-
-    const patchMat = new THREE.MeshStandardMaterial({ color: 0x3a2f22 });
-    const leftPatch = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), patchMat);
-    leftPatch.position.set(-0.24, 1.52, 1.02);
-    const rightPatch = leftPatch.clone(); rightPatch.position.x = 0.24;
-    g.add(leftPatch, rightPatch);
-
-    const eyeGeo = new THREE.SphereGeometry(0.07, 10, 8);
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x000 });
-    g.add(new THREE.Mesh(eyeGeo, eyeMat)).position.set(-0.24, 1.55, 1.08);
-    g.add(new THREE.Mesh(eyeGeo, eyeMat)).position.set(0.24, 1.55, 1.08);
-
-    const armGeo = new THREE.CylinderGeometry(0.16, 0.16, 2.1, 12);
-    const armL = new THREE.Mesh(armGeo, furMat); armL.position.set(-0.9, 0.35, 0.45); armL.rotation.z=0.6;
-    const armR = new THREE.Mesh(armGeo, furMat); armR.position.set(0.9, 0.35, 0.45); armR.rotation.z=-0.6;
+    // Руки
+    const armGeo = new THREE.CylinderGeometry(0.15,0.15,1.2,12);
+    armL = new THREE.Mesh(armGeo, bodyMat); armL.position.set(-0.7,1,0);
+    armR = new THREE.Mesh(armGeo, bodyMat); armR.position.set(0.7,1,0);
     g.add(armL, armR);
 
-    const legGeo = new THREE.CylinderGeometry(0.18, 0.18, 1.0, 12);
-    g.add(new THREE.Mesh(legGeo, furMat)).position.set(-0.5, 0.05, -0.6);
-    g.add(new THREE.Mesh(legGeo, furMat)).position.set(0.5, 0.05, -0.6);
+    // Ноги
+    const legGeo = new THREE.CylinderGeometry(0.18,0.18,1.2,12);
+    legL = new THREE.Mesh(legGeo, legMat); legL.position.set(-0.3,0,0);
+    legR = new THREE.Mesh(legGeo, legMat); legR.position.set(0.3,0,0);
+    g.add(legL, legR);
 
-    g.position.set(0, 0.4, 0);
+    g.position.set(0,0.6,0);
     return g;
   }
 
@@ -173,12 +156,10 @@
   }
 
   function gatherResource() {
-    if (!sloth || gameOver) return;
+    if (!player || gameOver) return;
     let closest=null,minDist=3.2;
     for (let r of resources) {
-      const dx=sloth.position.x-r.mesh.position.x;
-      const dz=sloth.position.z-r.mesh.position.z;
-      const d=Math.hypot(dx,dz);
+      const d=player.position.distanceTo(r.mesh.position);
       if (d<minDist){minDist=d;closest=r;}
     }
     if (closest){
@@ -209,7 +190,7 @@
     const ground=new THREE.Mesh(new THREE.PlaneGeometry(300,300),new THREE.MeshStandardMaterial({color:0x2b6b2b}));
     ground.rotation.x=-Math.PI/2; scene.add(ground);
 
-    sloth=createSlothPrimitive(); scene.add(sloth);
+    player=createHuman(); scene.add(player);
     createBanner();
 
     for(let i=0;i<30;i++) spawnTree();
@@ -248,10 +229,7 @@
 
     flashMessage("You reached 100000 Rialo Points! 🎉");
 
-    // повернення на старт через 5 секунд
-    setTimeout(()=>{
-      location.reload();
-    },5000);
+    setTimeout(()=>{ location.reload(); },5000);
   }
 
   function onWindowResize(){
@@ -274,18 +252,33 @@
   function animate(){
     requestAnimationFrame(animate);
     const dt=clock.getDelta();
-    if(sloth && !gameOver){
+    if(player && !gameOver){
       let dx=0,dz=0;
-      if(keys['KeyW']) dz-=1;
-      if(keys['KeyS']) dz+=1;
-      if(keys['KeyA']) dx-=1;
-      if(keys['KeyD']) dx+=1;
+      if(keys['KeyW'] || keys['ArrowUp']) dz -= 1;
+      if(keys['KeyS'] || keys['ArrowDown']) dz += 1;
+      if(keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+      if(keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
       const len=Math.hypot(dx,dz);
       if(len>0){
         dx/=len; dz/=len;
-        sloth.position.x+=dx*5*dt;
-        sloth.position.z+=dz*5*dt;
-        sloth.lookAt(sloth.position.x+dx,sloth.position.y+0.6,sloth.position.z+dz);
+        player.position.x += dx*5*dt;
+        player.position.z += dz*5*dt;
+        player.lookAt(player.position.x+dx, player.position.y, player.position.z+dz);
+
+        // === анімація ходьби ===
+        walkCycle += dt*6; // швидкість кроків
+        const swing = Math.sin(walkCycle)*0.6;
+        if(armL) armL.rotation.x = swing;
+        if(armR) armR.rotation.x = -swing;
+        if(legL) legL.rotation.x = -swing;
+        if(legR) legR.rotation.x = swing;
+      } else {
+        // повернення до спокою
+        if(armL) armL.rotation.x *= 0.8;
+        if(armR) armR.rotation.x *= 0.8;
+        if(legL) legL.rotation.x *= 0.8;
+        if(legR) legR.rotation.x *= 0.8;
       }
     }
     controls.update();
