@@ -79,9 +79,10 @@
     <button id="startButton">Start Game</button>
   </div>
 
-  <!-- ✅ Three.js та OrbitControls -->
+  <!-- Three.js -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- ✅ Працююча версія OrbitControls (UMD) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.min.js"></script>
 
   <script>
     let scene, camera, renderer, controls;
@@ -122,18 +123,16 @@
       ground.rotation.x = -Math.PI / 2;
       scene.add(ground);
 
-      // Sloth character
+      // Sloth character (якщо немає sloth.png – буде просто білий квадрат)
       const loader = new THREE.TextureLoader();
-      const slothTexture = loader.load("sloth.png");
-      const slothMat = new THREE.MeshBasicMaterial({ map: slothTexture, transparent: true });
+      const slothMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
       const slothGeo = new THREE.PlaneGeometry(2, 3);
       sloth = new THREE.Mesh(slothGeo, slothMat);
       sloth.position.set(0, 1.5, 0);
       scene.add(sloth);
 
-      // Rialo Banner
-      const bannerTexture = loader.load("rialo_logo.png");
-      const bannerMat = new THREE.MeshBasicMaterial({ map: bannerTexture, transparent: true });
+      // Rialo Banner (якщо немає картинки – буде жовта площина)
+      const bannerMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
       const bannerGeo = new THREE.PlaneGeometry(20, 10);
       const banner = new THREE.Mesh(bannerGeo, bannerMat);
       banner.position.set(0, 15, -30);
