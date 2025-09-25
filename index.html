@@ -1,198 +1,252 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <title>Rialo Explorer</title>
   <style>
-    body { margin:0; overflow:hidden; background:#111; font-family:Arial,sans-serif; color:#fff; }
-    #hud {
-      position:fixed; left:10px; top:10px; z-index:50;
-      background:rgba(0,0,0,0.5); padding:8px 12px; border-radius:6px;
+    body { margin: 0; overflow: hidden; background: #111; }
+    #scoreboard {
+      position: fixed; top: 10px; left: 10px;
+      color: white; font-size: 18px; font-family: Arial, sans-serif;
+      background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px;
+      z-index: 10;
     }
     #message {
-      position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-      color:yellow; font-size:16px; background:rgba(0,0,0,0.6);
-      padding:6px 12px; border-radius:6px; display:none; z-index:60;
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      color: yellow; font-size: 16px;
+      background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 6px;
+      display: none; z-index: 10;
     }
+    #controls {
+      position: fixed; bottom: 30px; left: 20px;
+      display: flex; gap: 15px; z-index: 20;
+    }
+    #actions {
+      position: fixed; bottom: 30px; right: 20px;
+      display: flex; flex-direction: column; gap: 15px; z-index: 20;
+    }
+    .btn {
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      border: 2px solid white;
+      color: white; font-size: 28px;
+      display: flex; justify-content: center; align-items: center;
+      user-select: none;
+    }
+    .btn:active { background: rgba(255,255,255,0.5); }
+
     #startScreen {
-      position:fixed; inset:0; display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      background:rgba(0,0,0,0.9); z-index:200; color:white;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.9);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      z-index: 100;
+      color: white; font-family: Arial, sans-serif;
     }
     #startButton {
-      margin-top:20px; padding:10px 20px; font-size:18px;
-      border:2px solid white; border-radius:8px; background:transparent; color:white;
-      cursor:pointer;
+      margin-top: 20px;
+      padding: 12px 24px;
+      font-size: 20px;
+      border: 2px solid white;
+      background: transparent;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
     }
-    #minimap { position:fixed; right:10px; top:10px; border:2px solid white; z-index:50; background:black; }
+    #startButton:hover { background: rgba(255,255,255,0.2); }
   </style>
 </head>
 <body>
-  <div id="hud">
-    Rialo Points: <span id="score">0</span><br/>
-    Controls: WASD move, E gather
-  </div>
-  <canvas id="minimap" width="150" height="150"></canvas>
+  <div id="scoreboard">Rialo Points: 0</div>
   <div id="message"></div>
 
+  <!-- Mobile controls -->
+  <div id="controls" style="display:none;">
+    <div class="btn" data-key="KeyA">⬅️</div>
+    <div class="btn" data-key="KeyW">⬆️</div>
+    <div class="btn" data-key="KeyS">⬇️</div>
+    <div class="btn" data-key="KeyD">➡️</div>
+  </div>
+
+  <div id="actions" style="display:none;">
+    <div class="btn" id="btnE">E</div>
+  </div>
+
+  <!-- Start screen -->
   <div id="startScreen">
     <h1>Rialo Explorer</h1>
-    <p>Collect resources (E) and earn Rialo Points!</p>
+    <p>Collect resources (E) and earn Rialo Points.</p>
     <button id="startButton">Start Game</button>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>
-  <script>
-    let scene, camera, renderer;
-    let player, playerGroup;
-    let resources = [];
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
+    import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js";
+
+    let scene, camera, renderer, controls;
+    let sloth, resources = [];
     let score = 0;
+    const scoreboard = document.getElementById("scoreboard");
+    const message = document.getElementById("message");
+    const startScreen = document.getElementById("startScreen");
+
     const keys = {};
-    const scoreEl = document.getElementById("score");
-    const messageEl = document.getElementById("message");
-    const minimap = document.getElementById("minimap");
-    const ctx = minimap.getContext("2d");
-    const clock = new THREE.Clock();
 
-    function flashMessage(txt) {
-      messageEl.innerText = txt;
-      messageEl.style.display = "block";
-      setTimeout(() => messageEl.style.display = "none", 1200);
-    }
-
-    function init() {
+    function initGame() {
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x222222);
+      scene.background = new THREE.Color(0x77ccff);
 
-      renderer = new THREE.WebGLRenderer({ antialias:true });
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 5, 10);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
-      camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.1, 1000);
+      // OrbitControls for camera movement (mouse)
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.set(0, 2, 0);
 
-      // ground
-      const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(200,200),
-        new THREE.MeshLambertMaterial({ color:0x226622 })
-      );
-      ground.rotation.x = -Math.PI/2;
-      scene.add(ground);
-
-      // lights
-      const dir = new THREE.DirectionalLight(0xffffff, 1);
-      dir.position.set(10,20,10);
-      scene.add(dir);
+      // Lights
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(10, 20, 10);
+      scene.add(light);
       scene.add(new THREE.AmbientLight(0x404040));
 
-      // player group + sprite
-      playerGroup = new THREE.Group();
-      scene.add(playerGroup);
-
-      const tex = new THREE.TextureLoader().load("sloth.png");
-      const aspect = 0.7;
-      const geo = new THREE.PlaneGeometry(1.5*aspect,1.5);
-      const mat = new THREE.MeshBasicMaterial({ map:tex, transparent:true });
-      player = new THREE.Mesh(geo, mat);
-      player.position.y = 0.75;
-      playerGroup.add(player);
-
-      // camera third person behind player
-      camera.position.set(0,2.5,-4);
-      playerGroup.add(camera);
-
-      // spawn Rialo banner
-      const logoTex = new THREE.TextureLoader().load("rialo_logo.png");
-      const logo = new THREE.Mesh(
-        new THREE.PlaneGeometry(12,6),
-        new THREE.MeshBasicMaterial({ map:logoTex, transparent:true })
+      // Ground
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(200, 200),
+        new THREE.MeshPhongMaterial({ color: 0x228833 })
       );
-      logo.position.set(0,8,-15);
-      scene.add(logo);
+      ground.rotation.x = -Math.PI / 2;
+      scene.add(ground);
 
-      // spawn resources
-      for (let i=0;i<25;i++) spawnResource();
+      // Sloth character
+      const loader = new THREE.TextureLoader();
+      const slothTexture = loader.load("sloth.png");
+      const slothMat = new THREE.MeshBasicMaterial({ map: slothTexture, transparent: true });
+      const slothGeo = new THREE.PlaneGeometry(2, 3);
+      sloth = new THREE.Mesh(slothGeo, slothMat);
+      sloth.position.set(0, 1.5, 0);
+      scene.add(sloth);
 
-      window.addEventListener("resize", () => {
-        camera.aspect = window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
+      // Rialo Banner
+      const bannerTexture = loader.load("rialo_logo.png");
+      const bannerMat = new THREE.MeshBasicMaterial({ map: bannerTexture, transparent: true });
+      const bannerGeo = new THREE.PlaneGeometry(20, 10);
+      const banner = new THREE.Mesh(bannerGeo, bannerMat);
+      banner.position.set(0, 15, -30);
+      scene.add(banner);
+
+      // Spawn resources
+      for (let i = 0; i < 10; i++) spawnTree();
+      for (let i = 0; i < 6; i++) spawnRock();
+      for (let i = 0; i < 4; i++) spawnGold();
+
+      animate();
     }
 
-    function spawnResource() {
-      const types = [0x8b4513,0xaaaaaa,0xffd700];
-      const color = types[Math.floor(Math.random()*types.length)];
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(1,1,1),
-        new THREE.MeshLambertMaterial({ color })
+    function spawnTree() {
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3, 0.5, 2),
+        new THREE.MeshPhongMaterial({ color: 0x8b4513 })
       );
-      mesh.position.set((Math.random()-0.5)*80,0.5,(Math.random()-0.5)*80);
-      scene.add(mesh);
-      resources.push(mesh);
+      const leaves = new THREE.Mesh(
+        new THREE.SphereGeometry(1.2, 8, 8),
+        new THREE.MeshPhongMaterial({ color: 0x228b22 })
+      );
+      const tree = new THREE.Group();
+      trunk.position.y = 1;
+      leaves.position.y = 2.5;
+      tree.add(trunk);
+      tree.add(leaves);
+      tree.position.set((Math.random() - 0.5) * 100, 0, (Math.random() - 0.5) * 100);
+      scene.add(tree);
+      resources.push({ mesh: tree, type: "tree", points: 5 });
     }
 
-    function gather() {
-      let closest=null, dist=2;
-      const pos = playerGroup.position;
+    function spawnRock() {
+      const rock = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(1, 0),
+        new THREE.MeshPhongMaterial({ color: 0x808080 })
+      );
+      rock.position.set((Math.random() - 0.5) * 100, 1, (Math.random() - 0.5) * 100);
+      scene.add(rock);
+      resources.push({ mesh: rock, type: "rock", points: 8 });
+    }
+
+    function spawnGold() {
+      const gold = new THREE.Mesh(
+        new THREE.SphereGeometry(0.8, 12, 12),
+        new THREE.MeshPhongMaterial({ color: 0xffd700 })
+      );
+      gold.position.set((Math.random() - 0.5) * 100, 1, (Math.random() - 0.5) * 100);
+      scene.add(gold);
+      resources.push({ mesh: gold, type: "gold", points: 15 });
+    }
+
+    function flashMessage(text) {
+      message.innerText = text;
+      message.style.display = "block";
+      setTimeout(() => message.style.display = "none", 1500);
+    }
+
+    function gatherResource() {
+      let closest = null, dist = 3;
       for (let r of resources) {
-        const d = pos.distanceTo(r.position);
-        if (d<dist) { dist=d; closest=r; }
+        const d = sloth.position.distanceTo(r.mesh.position);
+        if (d < dist) { dist = d; closest = r; }
       }
       if (closest) {
-        scene.remove(closest);
-        resources = resources.filter(x=>x!==closest);
-        score += 5;
-        scoreEl.innerText = score;
-        flashMessage("Collected resource!");
+        scene.remove(closest.mesh);
+        resources.splice(resources.indexOf(closest), 1);
+        score += closest.points;
+        scoreboard.innerText = "Rialo Points: " + score;
+        flashMessage("Collected " + closest.type + "!");
       } else {
         flashMessage("No resource nearby");
       }
     }
 
-    // Input
-    window.addEventListener("keydown",e=>{ keys[e.code]=true; if(e.code==="KeyE") gather(); });
-    window.addEventListener("keyup",e=>keys[e.code]=false);
+    window.addEventListener("keydown", e => {
+      keys[e.code] = true;
+      if (e.code === "KeyE") gatherResource();
+    });
+    window.addEventListener("keyup", e => keys[e.code] = false);
 
-    function move(delta) {
-      const speed=5;
-      const dir=new THREE.Vector3();
-      if(keys["KeyW"]) dir.z -= 1;
-      if(keys["KeyS"]) dir.z += 1;
-      if(keys["KeyA"]) dir.x -= 1;
-      if(keys["KeyD"]) dir.x += 1;
-      if(dir.lengthSq()>0) {
-        dir.normalize();
-        playerGroup.position.addScaledVector(dir,speed*delta);
-      }
+    document.querySelectorAll("#controls .btn").forEach(btn => {
+      const key = btn.dataset.key;
+      btn.addEventListener("touchstart", () => keys[key] = true);
+      btn.addEventListener("touchend", () => keys[key] = false);
+    });
+    document.getElementById("btnE").addEventListener("touchstart", () => gatherResource());
+
+    function moveSloth(delta) {
+      const speed = 5;
+      if (keys["KeyW"]) sloth.position.z -= speed * delta;
+      if (keys["KeyS"]) sloth.position.z += speed * delta;
+      if (keys["KeyA"]) sloth.position.x -= speed * delta;
+      if (keys["KeyD"]) sloth.position.x += speed * delta;
+      camera.position.set(sloth.position.x, sloth.position.y + 4, sloth.position.z + 8);
+      controls.target.copy(sloth.position);
     }
 
-    function drawMinimap() {
-      ctx.fillStyle="black"; ctx.fillRect(0,0,minimap.width,minimap.height);
-      const cx=minimap.width/2, cy=minimap.height/2;
-      ctx.fillStyle="red"; ctx.beginPath(); ctx.arc(cx,cy,4,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle="blue";
-      for(let r of resources) {
-        const dx=r.position.x-playerGroup.position.x;
-        const dz=r.position.z-playerGroup.position.z;
-        const scale=4;
-        const x=cx+dx/scale, y=cy+dz/scale;
-        if(x>=0 && x<=minimap.width && y>=0 && y<=minimap.height)
-          ctx.fillRect(x-2,y-2,4,4);
-      }
-    }
-
+    const clock = new THREE.Clock();
     function animate() {
       requestAnimationFrame(animate);
-      const delta=clock.getDelta();
-      move(delta);
-      renderer.render(scene,camera);
-      drawMinimap();
+      const delta = clock.getDelta();
+      moveSloth(delta);
+      controls.update();
+      renderer.render(scene, camera);
     }
 
-    document.getElementById("startButton").addEventListener("click",()=>{
-      document.getElementById("startScreen").style.display="none";
-      init();
-      animate();
+    document.getElementById("startButton").addEventListener("click", () => {
+      startScreen.style.display = "none";
+      initGame();
+      if (/Mobi|Android/i.test(navigator.userAgent)) {
+        document.getElementById("controls").style.display = "flex";
+        document.getElementById("actions").style.display = "flex";
+      }
     });
   </script>
 </body>
