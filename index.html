@@ -60,11 +60,14 @@
     <button id="startButton">Start Game</button>
   </div>
 
-  <!-- ✅ three.js тільки ядро -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+  <!-- ✅ підключаємо three.js і аддони як ES-модулі -->
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
+    import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js";
+    import { FontLoader } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/FontLoader.js";
+    import { TextGeometry } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/geometries/TextGeometry.js";
 
-  <script>
-    let scene, camera, renderer;
+    let scene, camera, renderer, controls;
     let sloth, resources = [];
     let score = 0;
     const scoreboard = document.getElementById("scoreboard");
@@ -74,62 +77,38 @@
 
     function createSloth() {
       const slothGroup = new THREE.Group();
-
-      const body = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.8, 0.8, 2.5, 16),
-        new THREE.MeshPhongMaterial({ color: 0x8b5e3c })
-      );
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 2.5, 16), new THREE.MeshPhongMaterial({ color: 0x8b5e3c }));
       slothGroup.add(body);
-
-      const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.7, 16, 16),
-        new THREE.MeshPhongMaterial({ color: 0xa67c52 })
-      );
-      head.position.y = 1.7;
-      slothGroup.add(head);
-
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 16), new THREE.MeshPhongMaterial({ color: 0xa67c52 }));
+      head.position.y = 1.7; slothGroup.add(head);
       const eyeGeo = new THREE.SphereGeometry(0.1, 8, 8);
       const eyeMat = new THREE.MeshPhongMaterial({ color: 0x000000 });
-      const eye1 = new THREE.Mesh(eyeGeo, eyeMat);
-      const eye2 = new THREE.Mesh(eyeGeo, eyeMat);
-      eye1.position.set(-0.25, 1.8, 0.6);
-      eye2.position.set(0.25, 1.8, 0.6);
+      const eye1 = new THREE.Mesh(eyeGeo, eyeMat); eye1.position.set(-0.25, 1.8, 0.6);
+      const eye2 = new THREE.Mesh(eyeGeo, eyeMat); eye2.position.set(0.25, 1.8, 0.6);
       slothGroup.add(eye1, eye2);
-
       const pawGeo = new THREE.BoxGeometry(0.3, 1, 0.3);
       const pawMat = new THREE.MeshPhongMaterial({ color: 0x8b5e3c });
-      const paw1 = new THREE.Mesh(pawGeo, pawMat);
-      const paw2 = new THREE.Mesh(pawGeo, pawMat);
-      paw1.position.set(-0.5, -1, 0);
-      paw2.position.set(0.5, -1, 0);
+      const paw1 = new THREE.Mesh(pawGeo, pawMat); paw1.position.set(-0.5, -1, 0);
+      const paw2 = new THREE.Mesh(pawGeo, pawMat); paw2.position.set(0.5, -1, 0);
       slothGroup.add(paw1, paw2);
-
       slothGroup.position.set(0, 1.5, 0);
       return slothGroup;
     }
 
     function createBanner() {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      canvas.width = 512;
-      canvas.height = 128;
-      ctx.fillStyle = "black";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.font = "bold 80px Arial";
-      ctx.fillStyle = "yellow";
-      ctx.fillText("RIALO", 100, 90);
-      const texture = new THREE.CanvasTexture(canvas);
-      const material = new THREE.SpriteMaterial({ map: texture });
-      const sprite = new THREE.Sprite(material);
-      sprite.scale.set(20, 5, 1);
-      sprite.position.set(0, 12, -20);
-      scene.add(sprite);
+      const loader = new FontLoader();
+      loader.load("https://cdn.jsdelivr.net/npm/three@0.161.0/examples/fonts/helvetiker_regular.typeface.json", font => {
+        const textGeo = new TextGeometry("RIALO", { font: font, size: 3, height: 0.5 });
+        const textMat = new THREE.MeshPhongMaterial({ color: 0xffff00 });
+        const textMesh = new THREE.Mesh(textGeo, textMat);
+        textMesh.position.set(-8, 12, -20);
+        scene.add(textMesh);
+      });
     }
 
     function initGame() {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x77ccff);
-
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(0, 5, 10);
 
@@ -137,21 +116,18 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.target.set(0, 2, 0);
+      controls.enableDamping = true;
+
       const light = new THREE.DirectionalLight(0xffffff, 1);
       light.position.set(10, 20, 10);
-      scene.add(light);
-      scene.add(new THREE.AmbientLight(0x404040));
+      scene.add(light, new THREE.AmbientLight(0x404040));
 
-      const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshPhongMaterial({ color: 0x228833 })
-      );
-      ground.rotation.x = -Math.PI / 2;
-      scene.add(ground);
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshPhongMaterial({ color: 0x228833 }));
+      ground.rotation.x = -Math.PI / 2; scene.add(ground);
 
-      sloth = createSloth();
-      scene.add(sloth);
-
+      sloth = createSloth(); scene.add(sloth);
       createBanner();
 
       for (let i = 0; i < 10; i++) spawnTree();
@@ -163,38 +139,23 @@
     }
 
     function spawnTree() {
-      const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.3, 0.5, 2),
-        new THREE.MeshPhongMaterial({ color: 0x8b4513 })
-      );
-      const leaves = new THREE.Mesh(
-        new THREE.SphereGeometry(1.2, 8, 8),
-        new THREE.MeshPhongMaterial({ color: 0x228b22 })
-      );
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 2), new THREE.MeshPhongMaterial({ color: 0x8b4513 }));
+      const leaves = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 8), new THREE.MeshPhongMaterial({ color: 0x228b22 }));
       const tree = new THREE.Group();
-      trunk.position.y = 1;
-      leaves.position.y = 2.5;
+      trunk.position.y = 1; leaves.position.y = 2.5;
       tree.add(trunk, leaves);
       tree.position.set((Math.random() - 0.5) * 100, 0, (Math.random() - 0.5) * 100);
       scene.add(tree);
       resources.push({ mesh: tree, type: "tree", points: 5 });
     }
-
     function spawnRock() {
-      const rock = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1, 0),
-        new THREE.MeshPhongMaterial({ color: 0x808080 })
-      );
+      const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshPhongMaterial({ color: 0x808080 }));
       rock.position.set((Math.random() - 0.5) * 100, 1, (Math.random() - 0.5) * 100);
       scene.add(rock);
       resources.push({ mesh: rock, type: "rock", points: 8 });
     }
-
     function spawnGold() {
-      const gold = new THREE.Mesh(
-        new THREE.SphereGeometry(0.8, 12, 12),
-        new THREE.MeshPhongMaterial({ color: 0xffd700 })
-      );
+      const gold = new THREE.Mesh(new THREE.SphereGeometry(0.8, 12, 12), new THREE.MeshPhongMaterial({ color: 0xffd700 }));
       gold.position.set((Math.random() - 0.5) * 100, 1, (Math.random() - 0.5) * 100);
       scene.add(gold);
       resources.push({ mesh: gold, type: "gold", points: 15 });
@@ -206,7 +167,6 @@
       clearTimeout(message._hideTimeout);
       message._hideTimeout = setTimeout(() => message.style.display = "none", 1400);
     }
-
     function gatherResource() {
       let closest = null, dist = 3;
       for (let r of resources) {
@@ -242,7 +202,7 @@
       if (keys["KeyA"]) sloth.position.x -= speed * delta;
       if (keys["KeyD"]) sloth.position.x += speed * delta;
       camera.position.set(sloth.position.x, sloth.position.y + 4, sloth.position.z + 8);
-      camera.lookAt(sloth.position);
+      controls.target.copy(sloth.position);
     }
 
     const clock = new THREE.Clock();
@@ -250,9 +210,9 @@
       requestAnimationFrame(animate);
       const delta = clock.getDelta();
       moveSloth(delta);
+      controls.update();
       renderer.render(scene, camera);
     }
-
     function onWindowResize() {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
