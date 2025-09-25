@@ -95,12 +95,11 @@
     <button id="startButton">Start Game</button>
   </div>
 
-  <!-- Libraries -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/PointerLockControls.js"></script>
+  <!-- Game script -->
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js";
+    import { PointerLockControls } from "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/PointerLockControls.js";
 
-  <!-- Main game -->
-  <script>
     let scene, camera, renderer, controls;
     let resourceNodes = [], resourceGroup;
     let score = 0, audioCtx = null;
@@ -120,10 +119,9 @@
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
 
-      // Insert canvas BEFORE HUD
       document.body.insertBefore(renderer.domElement, document.getElementById("scoreboard"));
 
-      controls = new THREE.PointerLockControls(camera, document.body);
+      controls = new PointerLockControls(camera, document.body);
       scene.add(controls.getObject());
 
       const isMobile = /Mobi|Android/i.test(navigator.userAgent);
@@ -158,7 +156,6 @@
         spawnResource((Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50);
       }
 
-      // Start animation
       animate();
     }
 
@@ -198,7 +195,6 @@
       osc.stop(audioCtx.currentTime + duration);
     }
 
-    // Input
     const keys = {};
     window.addEventListener("keydown", e => keys[e.code] = true);
     window.addEventListener("keyup", e => keys[e.code] = false);
@@ -246,7 +242,6 @@
       if (e.code === "KeyC") craftToken();
     });
 
-    // Movement
     const velocity = new THREE.Vector3();
     const direction = new THREE.Vector3();
     const moveSpeed = 5.0;
@@ -266,7 +261,6 @@
       }
     }
 
-    // Minimap
     const minimap = document.getElementById("minimap");
     const ctx = minimap.getContext("2d");
     function drawMinimap() {
@@ -295,7 +289,6 @@
       }
     }
 
-    // Game loop
     const clock = new THREE.Clock();
     function animate() {
       requestAnimationFrame(animate);
@@ -317,7 +310,6 @@
       drawMinimap();
     }
 
-    // Start button
     document.getElementById("startButton").addEventListener("click", () => {
       startScreen.style.display = "none";
       initAudio();
