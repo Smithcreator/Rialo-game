@@ -253,28 +253,30 @@
     requestAnimationFrame(animate);
     const dt=clock.getDelta();
     if(player && !gameOver){
-      let dx=0,dz=0;
-      if(keys['KeyW'] || keys['ArrowUp']) dz -= 1;
-      if(keys['KeyS'] || keys['ArrowDown']) dz += 1;
-      if(keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
-      if(keys['KeyD'] || keys['ArrowRight']) dx += 1;
+      let forward = new THREE.Vector3();
+      camera.getWorldDirection(forward);
+      forward.y = 0; forward.normalize();
+      let right = new THREE.Vector3();
+      right.crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
 
-      const len=Math.hypot(dx,dz);
-      if(len>0){
-        dx/=len; dz/=len;
-        player.position.x += dx*5*dt;
-        player.position.z += dz*5*dt;
-        player.lookAt(player.position.x+dx, player.position.y, player.position.z+dz);
+      let moveDir = new THREE.Vector3();
+      if(keys['KeyW'] || keys['ArrowUp']) moveDir.add(forward);
+      if(keys['KeyS'] || keys['ArrowDown']) moveDir.sub(forward);
+      if(keys['KeyA'] || keys['ArrowLeft']) moveDir.sub(right);
+      if(keys['KeyD'] || keys['ArrowRight']) moveDir.add(right);
 
-        // === анімація ходьби ===
-        walkCycle += dt*6; // швидкість кроків
+      if(moveDir.length()>0){
+        moveDir.normalize();
+        player.position.addScaledVector(moveDir, 5*dt);
+        player.lookAt(player.position.clone().add(moveDir));
+
+        walkCycle += dt*6;
         const swing = Math.sin(walkCycle)*0.6;
         if(armL) armL.rotation.x = swing;
         if(armR) armR.rotation.x = -swing;
         if(legL) legL.rotation.x = -swing;
         if(legR) legR.rotation.x = swing;
       } else {
-        // повернення до спокою
         if(armL) armL.rotation.x *= 0.8;
         if(armR) armR.rotation.x *= 0.8;
         if(legL) legL.rotation.x *= 0.8;
